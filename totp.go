@@ -72,7 +72,7 @@ func (v *TOTP) Generate(secret string) (string, error) {
 }
 
 func (v *TOTP) GenerateAt(secret string, at time.Time) (string, error) {
-	return generate(secret, at, v.config)
+	return Generate(secret, at, v.config)
 }
 
 func (v *TOTP) Validate(key, secret, code string) (bool, error) {
@@ -106,7 +106,7 @@ func (v *TOTP) ValidateAt(key, secret, code string, at time.Time) (bool, error) 
 	return false, nil
 }
 
-func generate(secret string, t time.Time, config Config) (string, error) {
+func Generate(secret string, t time.Time, config Config) (string, error) {
 	if config.Timestep <= 0 || config.Digits < 1 || config.Digits >= len(pow10) {
 		return "", errors.New("invalid config")
 	}
