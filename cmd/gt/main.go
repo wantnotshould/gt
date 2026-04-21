@@ -31,57 +31,77 @@ func main() {
 	configPath := flag.String("c", "~/.gt.json", "Config file path")
 	flag.Parse()
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of gt:\n")
-		fmt.Fprintf(os.Stderr, "  gt -s <secret> [-d 6] [-t 30] [-a SHA1]\n\n")
-		flag.PrintDefaults()
-	}
-
-	flag.Parse()
+	var targetSecret string
+	var conf gt.Config
+	var label string
 
 	if *secretFlag != "" {
-		generateAndPrint(gt.Config{Algorithm: "SHA1", Digits: 6, Timestep: 30}, *secretFlag, "Manual")
-		return
-	}
-
-	path := expandPath(*configPath)
-	accounts, err := loadConfig(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
-		os.Exit(1)
-	}
-
-	target := flag.Arg(0)
-	if target == "" {
-		fmt.Println("Available labels in config:")
-		for _, acc := range accounts {
-			fmt.Printf(" - %s (%s)\n", acc.Label, acc.Issuer)
+		targetSecret = *secretFlag
+		conf = gt.Config{Algorithm: "SHA1", Digits: 6, Timestep: 30}
+		label = "Manual"
+	} else {
+		path := expandPath(*configPath)
+		accounts, err := loadConfig(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+			os.Exit(1)
 		}
-		return
-	}
 
-	for _, acc := range accounts {
-		if strings.EqualFold(acc.Label, target) {
-			conf := gt.Config{
-				Algorithm: gt.Algorithm(acc.Algorithm),
-				Digits:    acc.Digits,
-				Timestep:  acc.Period,
-			}
-			generateAndPrint(conf, acc.Secret, acc.Label)
+		target := flag.Arg(0)
+		if target == "" {
+			printAccountList(accounts)
 			return
 		}
+
+		acc, found := findAccount(accounts, target)
+		if !found {
+			fmt.Printf("Label '%s' not found.\n", target)
+			os.Exit(1)
+		}
+		targetSecret = acc.Secret
+		conf = gt.Config{
+			Algorithm: gt.Algorithm(acc.Algorithm),
+			Digits:    acc.Digits,
+			Timestep:  acc.Period,
+		}
+		label = acc.Label
 	}
 
-	fmt.Printf("No configuration found for label: %s\n", target)
+	fmt.Printf("Account: %s\n", label)
+	fmt.Println("Press Ctrl+C to stop.")
+	fmt.Println("--------------------------")
+
+	for {
+		now := time.Now()
+		code, err := gt.Generate(targetSecret, now, conf)
+		if err != nil {
+			fmt.Printf("\rError: %v", err)
+			return
+		}
+
+		remaining := conf.Timestep - (now.Unix() % conf.Timestep)
+
+		fmt.Printf("\rCode: \033[1;32m%s\033[0m  Expires in: %2ds ", code, remaining)
+
+		time.Sleep(time.Second)
+	}
 }
 
-func generateAndPrint(conf gt.Config, secret string, label string) {
-	code, err := gt.Generate(secret, time.Now(), conf)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+func findAccount(accounts []Account, target string) (Account, bool) {
+	for _, acc := range accounts {
+		if strings.EqualFold(acc.Label, target) {
+			return acc, true
+		}
 	}
-	fmt.Printf("[%s] Code: %s\n", label, code)
+	return Account{}, false
+}
+
+func printAccountList(accounts []Account) {
+	fmt.Println("Usage: gt <label>")
+	fmt.Println("Available labels:")
+	for _, acc := range accounts {
+		fmt.Printf(" - %s\n", acc.Label)
+	}
 }
 
 func loadConfig(path string) ([]Account, error) {
@@ -89,11 +109,8 @@ func loadConfig(path string) ([]Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	var accounts []Account
-	if err := json.Unmarshal(data, &accounts); err != nil {
-		return nil, err
-	}
-	return accounts, nil
+	var accs []Account
+	return accs, json.Unmarshal(data, &accs)
 }
 
 func expandPath(path string) string {
