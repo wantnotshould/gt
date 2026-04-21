@@ -5,19 +5,31 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wantnotshould/gt"
 )
 
+type Account struct {
+	Label     string `json:"label"`
+	Secret    string `json:"secret"`
+	Algorithm string `json:"algorithm"`
+	Period    int64  `json:"period"`
+	Digits    int    `json:"digits"`
+	Issuer    string `json:"issuer"`
+}
+
 func main() {
-	secret := flag.String("s", "", "Base32 secret (required)")
-	digits := flag.Int("d", 6, "Number of digits (6 or 8)")
-	step := flag.Int64("t", 30, "Timestep in seconds")
-	algo := flag.String("a", "SHA1", "Algorithm (SHA1, SHA256, SHA512)")
+	secretFlag := flag.String("s", "", "Directly provide secret")
+	configPath := flag.String("c", "~/.gt.json", "Config file path")
+	flag.Parse()
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of gt:\n")
@@ -27,23 +39,67 @@ func main() {
 
 	flag.Parse()
 
-	if *secret == "" {
-		fmt.Println("secret is required.")
-		flag.Usage()
-		os.Exit(1)
+	if *secretFlag != "" {
+		generateAndPrint(gt.Config{Algorithm: "SHA1", Digits: 6, Timestep: 30}, *secretFlag, "Manual")
+		return
 	}
 
-	conf := gt.Config{
-		Algorithm: gt.Algorithm(*algo),
-		Digits:    *digits,
-		Timestep:  *step,
-	}
-
-	code, err := gt.Generate(*secret, time.Now(), conf)
+	path := expandPath(*configPath)
+	accounts, err := loadConfig(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error generating TOTP: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Code: %s\n", code)
+	target := flag.Arg(0)
+	if target == "" {
+		fmt.Println("Available labels in config:")
+		for _, acc := range accounts {
+			fmt.Printf(" - %s (%s)\n", acc.Label, acc.Issuer)
+		}
+		return
+	}
+
+	for _, acc := range accounts {
+		if strings.EqualFold(acc.Label, target) {
+			conf := gt.Config{
+				Algorithm: gt.Algorithm(acc.Algorithm),
+				Digits:    acc.Digits,
+				Timestep:  acc.Period,
+			}
+			generateAndPrint(conf, acc.Secret, acc.Label)
+			return
+		}
+	}
+
+	fmt.Printf("No configuration found for label: %s\n", target)
+}
+
+func generateAndPrint(conf gt.Config, secret string, label string) {
+	code, err := gt.Generate(secret, time.Now(), conf)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return
+	}
+	fmt.Printf("[%s] Code: %s\n", label, code)
+}
+
+func loadConfig(path string) ([]Account, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var accounts []Account
+	if err := json.Unmarshal(data, &accounts); err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~") {
+		usr, _ := user.Current()
+		path = filepath.Join(usr.HomeDir, path[1:])
+	}
+	return path
 }
