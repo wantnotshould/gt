@@ -1,0 +1,31 @@
+# Global defaults: Let Git handle text files and force LF line endings
+* text=auto eol=lf
+
+# Keep Go files clean with LF
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# JSON files should stay LF too
+*.json text eol=lf
+
+# Don't let Git configs mess up their own line endings
+*.gitattributes text eol=lf
+*.gitignore text eol=lf
+
+# Shell scripts (keep 'em Unix-friendly)
+*.sh text eol=lf
+# Windows scripts (the only ones allowed to use CRLF)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Docs and licensing
+*.md text eol=lf
+LICENSE text eol=lf
+
+# Keep SQL dumps/migrations consistent
+*.sql text eol=lf
+
+# YAML files (keep 'em Unix-friendly)
+*.yml text eol=lf
+*.yaml text eol=lf
