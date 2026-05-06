@@ -1,6 +1,6 @@
-// Copyright ©2026 cdme. All rights reserved.
-// Author: https://cdme.cn
-// Email: hi@cdme.cn
+// Copyright ©2026 wantnotshould. All rights reserved.
+// Author: wantnotshould
+// Email: ur@xiaud.com
 
 package main
 
