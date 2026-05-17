@@ -11,7 +11,7 @@ go get -u github.com/wantnotshould/gt
 ```
 ### Usage
 
-Instead of just calling a functionf, **gt** encourages you to provide a `Store` interface.
+Instead of just calling a function, **gt** encourages you to provide a `Store` interface.
 
 **Why?** Because TOTP codes are valid for a 30-second window. To prevent **Replay Attacks**, you need to keep track of the last used timestamp. This library makes that "mandatory-ish" for production safety.
 
